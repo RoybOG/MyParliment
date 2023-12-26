@@ -1,0 +1,46 @@
+{
+  "manifest_version": 3,
+  "name": "My Parliment",
+  "version": "0.0.2",
+  "description": "Turn your google meetings to your own parliment!",
+  "permissions": [
+    "storage",
+    "cookies",
+    "tabs"
+  ],
+  "host_permissions": [
+    "https://meet.google.com/*"
+  ],
+  "background": {
+    "service_worker": "background/index.js",
+    "type": "module"
+  },
+  "content_scripts": [
+    {
+      "js": [
+        "content/import-index.js"
+      ],
+      "matches": [
+        "https://*/*",
+        "http://*/*"
+      ]
+    }
+  ],
+  "action": {
+    "default_title": "MyParliment",
+    "default_popup": "pages/popup/index.html"
+  },
+  "web_accessible_resources": [
+    {
+      "resources": [
+        "chunks/*-*.js",
+        "content/index.js"
+      ],
+      "matches": [
+        "https://*/*",
+        "http://*/*",
+        "https://meet.google.com/*"
+      ]
+    }
+  ]
+}
