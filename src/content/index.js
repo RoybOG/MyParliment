@@ -2,9 +2,12 @@
 
 import {
   extractParticipantDetails,
-  isParticipantHost,
+  getHostButton,
+  getMuteButton,
+  injectHTML,
+  waitForElementToExist,
 } from '../utils/domManipulationUtils'
-import { convertToBoolean, simulateMute, waitForElementToExist } from '../utils'
+import { convertToBoolean, simulateMute } from '../utils'
 
 const injectContent = () => {
   const middleToolBar = document.querySelector('div.lefKC + div>div')
@@ -15,11 +18,6 @@ const injectContent = () => {
 
   if (!muteButton) return false
 }
-
-const getMuteButton = () =>
-  document.querySelector(
-    'div.Tmb7Fd button[data-is-muted][aria-label*="מיקרופון" i],button[data-is-muted][aria-label*="microphone" i]', //להוסיף לשפות אחרות
-  )
 
 //
 
@@ -40,6 +38,10 @@ function updateMuteButton(hasPermission) {
 
 async function checkParticipant() {
   //This function needs to run on 3 different occations: on loading page, on changing speaking and on changing who has permission
+  /* await chrome.runtime.sendMessage({ type: 'getDoc' }, (res) => {
+    console.log(res)
+  })*/
+
   await chrome.runtime.sendMessage(
     { type: 'CHECKPERMISSION', participantDetails: {} },
     (res) => {
@@ -76,9 +78,8 @@ function setupMuteObserver(target) {
 
 //-----------------------------------the main function------------------------------------------------------
 async function setup() {
-  console.log()
-
-  console.log(isParticipantHost())
+  await chrome.runtime.sendMessage({ type: 'init' })
+  console.log(Boolean(getHostButton()))
   let { participantDetails, isHost, muteSymbol } =
     await extractParticipantDetails()
   console.log(participantDetails)
@@ -93,6 +94,8 @@ async function setup() {
     console.log(participantDetails)
     await checkParticipant()
     setupMuteObserver(muteSymbol)
+    injectHTML() // this will asyncronysly wait until the host opens up the host controls
+    console.log('moving on...')
   } else {
     alert('יש בעיה בדף שלכם, כדאי לטעון מחדש')
   }

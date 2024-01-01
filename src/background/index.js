@@ -1,95 +1,12 @@
 /*-------------------FIREBASE---------------------------- */
 
-import { collection, doc, getDoc } from 'firebase/firestore'
-import { app_db } from '../firebaseUtils'
+import { doc, getDoc, onSnapshot } from 'firebase/firestore'
+import app_db, { colName } from '../firebaseUtils/'
 import { meetURLRegex } from '../utils'
+import { createCookie, getCookie } from './cookieApi'
+import { MeetingDoc } from '../firebaseUtils/utils'
 
-async function getCities() {
-  const citiesCol = doc(app_db, 'Meetings', 'rxh-btca-nrw')
-  const citySnapshot = await getDoc(citiesCol)
-  console.log(citySnapshot.data())
-}
-
-getCities()
 /* ---------- basic function ---------------------------- */
-
-function getUrl(url, path) {
-  if (path) {
-    url = new URL(path, url).toString()
-  }
-
-  return url
-}
-/* ---------- basic cookie functions -------------------- */
-function formatCookieValue(v) {
-  return JSON.stringify(v)
-}
-
-function readCookieValue(v) {
-  try {
-    return JSON.parse(v)
-  } catch {
-    return v
-  }
-}
-
-async function getCookie(name, url, path = null) {
-  const domainCookies = await chrome.cookies.getAll({
-    name,
-    url: getUrl(url, path),
-  })
-  const savedCookie = domainCookies.find((c) => c.path == path)
-  console.log(savedCookie)
-  if (savedCookie) {
-    savedCookie.value = readCookieValue(savedCookie.value)
-  }
-  return savedCookie
-}
-
-async function setCookie(newDetails) {
-  console.log(newDetails)
-  newDetails.value = formatCookieValue(newDetails.value)
-
-  await chrome.cookies.set(newDetails)
-}
-
-async function updateCookie(
-  newDetails,
-  mergeFunc = (old_v, new_v) => ({ ...old_v, ...new_v }),
-) {
-  const currentDetails = await getCookie(
-    newDetails.name,
-    newDetails.url,
-    newDetails.path,
-  )
-  console.log(currentDetails)
-  if (currentDetails) {
-    newDetails.value = mergeFunc(currentDetails.value, newDetails.value)
-    console.log(newDetails)
-    await setCookie(newDetails)
-  } else {
-    await createCookie(
-      newDetails.name,
-      newDetails.url,
-      newDetails.value,
-      newDetails.path,
-    )
-  }
-}
-
-async function createCookie(name, url, value, path = null) {
-  let currentDate = new Date()
-  currentDate.setDate(currentDate.getDate() + 1)
-  await setCookie({
-    name,
-    url,
-    value,
-    path,
-    httpOnly: true,
-    secure: true,
-    expirationDate: Math.floor(currentDate.getTime() / 1000),
-  })
-}
 
 /* ---------- functions for background -------------------- */
 const PARTICIPANT_COOKIE_NAME = 'Participant'
@@ -132,16 +49,28 @@ function canParticipantSpeak(participantDetails) {
   )
 }
 
+async function setUpDoc() {
+  //This function saves unnececery reads of the same doc by saveing it with closure. It creates a function environment to engage with the document and only when that document updates it will update the doc in the closure memory. This will save a lot of money down the road
+  const meetingID = 'rxh-btca-nrw'
+  let docObj = new MeetingDoc(meetingID)
+  return docObj
+}
+
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   ;(async () => {
     const meetingID = sender.url.match(meetURLRegex).groups.id
     console.log(message.type)
     const cookieValue = await getParticipantCookie(meetingID)
+    let docObj
     console.log(canParticipantSpeak(cookieValue))
     switch (message.type) {
+      case 'init':
+        docObj = setUpDoc()
+        sendResponse(true)
+        break
       case 'CHECKPERMISSION':
         sendResponse({
-          canSpeak: canParticipantSpeak(cookieValue),
+          canSpeak: docObj ? docObj.canParticipantSpeak(cookieValue) : true,
         })
         break
       case 'COOKIES-GET':

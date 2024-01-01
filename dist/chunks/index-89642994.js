@@ -1,24 +1,11 @@
 //--------------------general -----------------------------------------------------
 const meetURLRegex = /(?<id>[a-z0-9]{3,}\-[a-z0-9]{3,}\-[a-z0-9]{3,})/;
 const convertToBoolean = str => str === 'true';
-function waitForElementToExist(selector, ifNotExists = () => {}) {
-  return new Promise((resolve, reject) => {
-    if (document.querySelector(selector)) {
-      return resolve(document.querySelector(selector));
-    }
-    ifNotExists();
-    // setTimeout(reject, 30000);
-    const observer = new MutationObserver(() => {
-      if (document.querySelector(selector)) {
-        resolve(document.querySelector(selector));
-        observer.disconnect();
-      }
-    });
-    observer.observe(document.body, {
-      subtree: true,
-      childList: true
-    });
-  });
+function getUrl(url, path) {
+  if (path) {
+    url = new URL(path, url).toString();
+  }
+  return url;
 }
 function simulateMute() {
   const OSName = navigator.appVersion.indexOf('Mac') != -1 ? 'MacOS' : 'Other';
@@ -41,4 +28,4 @@ function simulateMute() {
   }
 }
 
-export { convertToBoolean as c, meetURLRegex as m, simulateMute as s, waitForElementToExist as w };
+export { convertToBoolean as c, getUrl as g, meetURLRegex as m, simulateMute as s };
