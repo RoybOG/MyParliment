@@ -9,7 +9,6 @@ import {
   onSnapshot,
   Firestore,
   FieldValue,
-  serverTimestamp,
   updateDoc,
 } from 'firebase/firestore'
 
@@ -28,12 +27,19 @@ const app_db = getFirestore(app)
 export class FSDocumentHandler {
   #docRef
   static dbRef = app_db
+
   static async loadDocument(docDetails) {
+    console.log(docDetails)
     let docObj = new this(docDetails) //waits till the object gets it's first
     await docObj.loads
     return docObj
   }
-  static async createDocument(docCollection, data, docID = null) {
+  static async createNewDocument(
+    docCollection,
+    data,
+    docID = null,
+    extraDetails = {},
+  ) {
     let docRef
     if (!docCollection) throw 'no collection specified!'
 
@@ -46,29 +52,46 @@ export class FSDocumentHandler {
         data,
       )
     }
-    let docObj = await loadDocument({ docRef })
+    let docObj = await FSDocumentHandler.loadDocument({
+      docRef,
+      ...extraDetails,
+    })
     await docObj.loads
     return docObj
   }
-  constructor({ docCollection, docID, docRef }) {
+
+  constructor({ docCollection, docID, docRef, updateListener }) {
     this.#docRef = docRef || doc(FSDocumentHandler.dbRef, docCollection, docID)
-    console.log(this.#docRef)
+    // console.log(this.#docRef)
     this.data = null
+    this.loaded = false
     this.loads = new Promise((resolve, reject) => {
       onSnapshot(this.#docRef, (st) => {
-        console.log('snapshot')
         console.log(st.data())
         this.data = st.data()
+        if (updateListener) {
+          updateListener(st, this)
+        }
+        this.loaded = true
         resolve(st.data())
       })
     })
   }
 
   fileExists() {
+    console.log('file Exists!!!!')
     return Boolean(this.data)
   }
   async updateDocument(newData) {
     await updateDoc(this.#docRef, newData)
+  }
+
+  async setDocument(newData) {
+    await setDoc(this.#docRef, newData)
+  }
+
+  select(selector) {
+    return selector(this.data)
   }
 }
 

@@ -1,4 +1,4 @@
-import { m as meetURLRegex, g as getUrl } from '../chunks/index-89642994.js';
+import { m as meetURLRegex, g as getUrl } from '../chunks/index-ef2f4dd5.js';
 
 /**
  * @license
@@ -6374,6 +6374,28 @@ function Ns(t) {
 
 function ks(t) {
     return Je(t) && t.arrayValue.values ? t.arrayValue.values.slice() : [];
+}
+
+/**
+ * @license
+ * Copyright 2017 Google LLC
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *   http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+/** A field path and the TransformOperation to perform upon it. */ class Ms {
+    constructor(t, e) {
+        this.field = t, this.transform = e;
+    }
 }
 
 function $s(t, e) {
@@ -14663,6 +14685,15 @@ class el extends Qh {
     }
 }
 
+class sl extends Qh {
+    _toFieldTransform(t) {
+        return new Ms(t.path, new bs);
+    }
+    isEqual(t) {
+        return t instanceof sl;
+    }
+}
+
 /** Parse update data from an update() call. */ function ul(t, e, n, s) {
     const i = t.ya(1 /* UserDataSource.Update */ , e, n);
     dl("Data must be an object, but it was:", i, s);
@@ -15495,6 +15526,13 @@ function If(t, ...e) {
 }
 
 /**
+ * Returns a sentinel used with {@link @firebase/firestore/lite#(setDoc:1)} or {@link @firebase/firestore/lite#(updateDoc:1)} to
+ * include a server-generated timestamp in the written data.
+ */ function Gf() {
+    return new sl("serverTimestamp");
+}
+
+/**
  * Cloud Firestore
  *
  * @packageDocumentation
@@ -15618,11 +15656,12 @@ const app_db = Ph(app);
 var _docRef = /*#__PURE__*/new WeakMap();
 class FSDocumentHandler {
   static async loadDocument(docDetails) {
+    console.log(docDetails);
     let docObj = new this(docDetails); //waits till the object gets it's first
     await docObj.loads;
     return docObj;
   }
-  static async createDocument(docCollection, data, docID = null) {
+  static async createNewDocument(docCollection, data, docID = null, extraDetails = {}) {
     let docRef;
     if (!docCollection) throw 'no collection specified!';
     if (docID) {
@@ -15631,8 +15670,9 @@ class FSDocumentHandler {
     } else {
       docRef = await pf(_h(FSDocumentHandler.dbRef, docCollection), data);
     }
-    let docObj = await loadDocument({
-      docRef
+    let docObj = await FSDocumentHandler.loadDocument({
+      docRef,
+      ...extraDetails
     });
     await docObj.loads;
     return docObj;
@@ -15640,29 +15680,41 @@ class FSDocumentHandler {
   constructor({
     docCollection,
     docID,
-    docRef
+    docRef,
+    updateListener
   }) {
     _classPrivateFieldInitSpec(this, _docRef, {
       writable: true,
       value: void 0
     });
     _classPrivateFieldSet(this, _docRef, docRef || gh(FSDocumentHandler.dbRef, docCollection, docID));
-    console.log(_classPrivateFieldGet(this, _docRef));
+    // console.log(this.#docRef)
     this.data = null;
+    this.loaded = false;
     this.loads = new Promise((resolve, reject) => {
       If(_classPrivateFieldGet(this, _docRef), st => {
-        console.log('snapshot');
         console.log(st.data());
         this.data = st.data();
+        if (updateListener) {
+          updateListener(st, this);
+        }
+        this.loaded = true;
         resolve(st.data());
       });
     });
   }
   fileExists() {
+    console.log('file Exists!!!!');
     return Boolean(this.data);
   }
   async updateDocument(newData) {
     await gf(_classPrivateFieldGet(this, _docRef), newData);
+  }
+  async setDocument(newData) {
+    await mf(_classPrivateFieldGet(this, _docRef), newData);
+  }
+  select(selector) {
+    return selector(this.data);
   }
 }
 
@@ -15716,26 +15768,50 @@ async function createCookie(name, url, value, path = null) {
 }
 
 class MeetingDoc extends FSDocumentHandler {
-  static async createMeetingDoc(meetingID, hostUUID) {
+  /*static async createMeetingDoc(meetingID, hostUUID, updateListener) {
+    let meetingStart = await serverTimestamp()
     let meetingData = {
       hostUUID,
-      startTime: serverTimestamp()
-    };
-    return await FSDocumentHandler.createDocument(colName, meetingData, meetingID);
-  }
-  constructor(meetingID) {
+      startTime: meetingStart,
+    }
+    return await FSDocumentHandler.createNewDocument(
+      colName,
+      meetingData,
+      meetingID,
+      { updateListener },
+    )
+  }*/
+
+  constructor({
+    meetingID,
+    ...extraDetails
+  }) {
     console.log('creating meeting!');
     super({
       docCollection: colName,
-      docID: meetingID
+      docID: meetingID,
+      ...extraDetails
     });
   }
-  CanParticipantSpeak(participantUUID) {
+  canParticipantSpeak(participantUUID) {
     var _this$data, _this$data2;
-    if (!this.fileExists) {
-      return false;
+    if (!this.fileExists()) {
+      return true;
     }
     return participantUUID == ((_this$data = this.data) === null || _this$data === void 0 ? void 0 : _this$data.hostUUID) || participantUUID == ((_this$data2 = this.data) === null || _this$data2 === void 0 ? void 0 : _this$data2.speakingParticipantUUID);
+  }
+  canControlMeeting(UUID) {
+    if (!this.fileExists()) {
+      return true;
+    }
+    return UUID == this.data.hostUUID;
+  }
+  async initializeMeetingDoc(meetingID, hostUUID) {
+    let meetingData = {
+      hostUUID,
+      startTime: Gf()
+    };
+    await this.setDocument(meetingData);
   }
   async setSpeakingParticipant(participantUUID) {
     await this.updateDocument({
@@ -15743,15 +15819,6 @@ class MeetingDoc extends FSDocumentHandler {
     });
   }
 }
-(async () => {
-  let g = await MeetingDoc.loadDocument('rxh-btca-nrw');
-  console.log(g.CanParticipantSpeak('abcdefg'));
-  console.log(g.CanParticipantSpeak('abcdefg'));
-  console.log(g.CanParticipantSpeak('abcdefg'));
-  console.log(g.CanParticipantSpeak('abcdefg'));
-  console.log(g.CanParticipantSpeak('5t3'));
-  //g.setSpeakingParticipant('helloeveryonemyturn')
-})();
 
 /*-------------------FIREBASE---------------------------- */
 
@@ -15776,42 +15843,77 @@ async function getParticipantCookie(path) {
   }
   return participantData;
 }
-const spreakingParticipant = {
-  UUID: '40516d44-d010-407d-9eaa-84aa79564dcd'
-};
-const hostParticipant = {
-  UUID: '8f288464-21a3-44ea-9192-b897c5264159'
-};
-function canParticipantSpeak(participantDetails) {
-  return participantDetails.UUID == spreakingParticipant.UUID || participantDetails.UUID == hostParticipant.UUID;
-}
-async function setUpDoc() {
-  //This function saves unnececery reads of the same doc by saveing it with closure. It creates a function environment to engage with the document and only when that document updates it will update the doc in the closure memory. This will save a lot of money down the road
-  const meetingID = 'rxh-btca-nrw';
-  let docObj = new MeetingDoc(meetingID);
-  return docObj;
-}
-chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
-  (async () => {
-    const meetingID = sender.url.match(meetURLRegex).groups.id;
-    console.log(message.type);
-    const cookieValue = await getParticipantCookie(meetingID);
-    let docObj;
-    console.log(canParticipantSpeak(cookieValue));
-    switch (message.type) {
-      case 'init':
-        docObj = setUpDoc();
-        sendResponse(true);
-        break;
-      case 'CHECKPERMISSION':
-        sendResponse({
-          canSpeak: docObj ? docObj.canParticipantSpeak(cookieValue) : true
+function _setUpListener() {
+  let docObj = null; //Saves the docment object in a closure of this function
+  let cookieValue = null;
+  let meetingTabID = null;
+  async function setUpDoc(meetingID, participantUUID) {
+    //This function saves unnececery reads of the same doc by saveing it with closure. It creates a function environment to engage with the document and only when that document updates it will update the doc in the closure memory. This will save a lot of money down the road
+    // const meetingID = 'nbn-gotf-izh'
+    console.log(meetingID);
+    getUrl('https://meet.google.com', meetingID);
+    let docObj = await MeetingDoc.loadDocument({
+      meetingID,
+      updateListener: async (st, obj) => {
+        // const [tab] = await chrome.tabs.query({
+        //   //Right now there's a bug that this doesn't work in incognito mode!! FIX!!!!! also a bug where scripts don't work when the window is too small!
+        //   url: [tabURL, tabURL + '?*'],
+        // })
+        console.log(meetingTabID);
+        await chrome.tabs.sendMessage(meetingTabID, {
+          type: 'documentUpdated',
+          canSpeak: obj === null || obj === void 0 ? void 0 : obj.canParticipantSpeak(participantUUID)
         });
-        break;
-      case 'COOKIES-GET':
-        sendResponse(cookieValue);
-        break;
-    }
-  })();
-  return true; //https://stackoverflow.com/questions/44056271/chrome-runtime-onmessage-response-with-async-await
-});
+      }
+    });
+    console.log(docObj);
+    return docObj;
+  }
+  chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+    (async (_docObj, _docObj2, _docObj3) => {
+      const meetingID = sender.url.match(meetURLRegex).groups.id;
+      console.log(sender.tab.id);
+      switch (message.type) {
+        case 'init':
+          meetingTabID = sender.tab.id; //Everytime "init" is always called the user is on the tab where the google meeting is. so if a participant closes the tab and opens it from a new one, "init" will be called again and the tab id will be updated
+          cookieValue = await getParticipantCookie(meetingID); //Could be a case where a user sends a request to thid before a document is loaded, so an admin can create a document, becuase he pressed fast enough before it
+          docObj = await setUpDoc(meetingID, cookieValue.UUID);
+          sendResponse('Document Set!');
+          break;
+        case 'CHECKPERMISSION':
+          sendResponse({
+            canSpeak: docObj.canParticipantSpeak(cookieValue.UUID)
+            //oldCanParticipantSpeak(cookieValue),
+          });
+          break;
+        case 'COOKIES-GET':
+          sendResponse(cookieValue);
+          break;
+        case 'canCreateMeetDoc':
+          console.log(docObj);
+          console.log((_docObj = docObj) === null || _docObj === void 0 ? void 0 : _docObj.canControlMeeting(cookieValue.UUID));
+          sendResponse((_docObj2 = docObj) === null || _docObj2 === void 0 ? void 0 : _docObj2.canControlMeeting(cookieValue.UUID));
+          break;
+        case 'createMeetDoc':
+          if ((_docObj3 = docObj) !== null && _docObj3 !== void 0 && _docObj3.fileExists()) {
+            sendResponse(false);
+          } else {
+            try {
+              var _docObj4;
+              await docObj.initializeMeetingDoc(meetingID, cookieValue.UUID);
+              sendResponse((_docObj4 = docObj) === null || _docObj4 === void 0 ? void 0 : _docObj4.fileExists());
+            } catch (err) {
+              console.log(err);
+              sendResponse(false);
+            }
+          }
+          break;
+      }
+    })();
+    return true; //https://stackoverflow.com/questions/44056271/chrome-runtime-onmessage-response-with-async-await
+  });
+}
+function setup() {
+  _setUpListener();
+}
+setup();

@@ -1,4 +1,4 @@
-import { c as convertToBoolean, s as simulateMute } from '../chunks/index-89642994.js';
+import { s as sendAndWait, c as convertToBoolean, a as simulateMute } from '../chunks/index-ef2f4dd5.js';
 
 function styleInject(css, ref) {
   if ( ref === void 0 ) ref = {};
@@ -33,12 +33,12 @@ styleInject(css_248z);
 const getHostButton = () => document.querySelector('div[jscontroller="upoJje"] button');
 const getMuteButton = () => document.querySelector('div.Tmb7Fd button[data-is-muted][aria-label*="מיקרופון" i],button[data-is-muted][aria-label*="microphone" i]' //להוסיף לשפות אחרות
 );
-function createFullElement(element, attribute, inner) {
+function createFullElement(element, attributes, inner) {
   console.log(element);
   let el = document.createElement(element);
-  if (typeof attribute === 'object') {
-    for (let key in attribute) {
-      el.setAttribute(key, attribute[key]);
+  if (typeof attributes === 'object') {
+    for (let key in attributes) {
+      el.setAttribute(key, attributes[key]);
     }
   }
   if (typeof inner == 'string') {
@@ -49,7 +49,7 @@ function createFullElement(element, attribute, inner) {
       console.log(innerElDetails);
       console.log(typeof innerElDetails);
       if (typeof innerElDetails == 'object') {
-        innerEl = createFullElement(innerElDetails.element, innerElDetails.attribute, innerElDetails.inner);
+        innerEl = createFullElement(innerElDetails.element, innerElDetails.attributes, innerElDetails.inner);
       } else {
         innerEl = document.createElement(innerElDetails);
       }
@@ -77,14 +77,25 @@ function waitForElementToExist(selector, ifNotExists = () => {}) {
     });
   });
 }
-function setHostControls() {
+async function startMeeting() {
+  if (await sendAndWait('createMeetDoc')) {
+    alert('הדיון התחיל בהצלחה! אתה מנחה הדיון!');
+  } else {
+    alert('לא הצלחת להתחיל את הדיון, או שמנחה אחר כבר התחיל או שהמערכת לא הצליחה! נסה מאוחר יותר!');
+  }
+}
+async function setHostControls() {
+  if (!(await sendAndWait('canCreateMeetDoc'))) {
+    console.log('file does exist');
+    return;
+  }
   const hostControlsButton = getHostButton();
   if (!hostControlsButton) return null;
   let extControls = createFullElement('section', {
     id: 'ExtHostControls'
   }, [{
     element: 'div',
-    attribute: {
+    attributes: {
       class: 'qNFnn',
       style: 'text-align: left;'
     },
@@ -93,6 +104,7 @@ function setHostControls() {
     element: 'button',
     inner: 'להתחלת הדיון'
   }]);
+  extControls.querySelector('button').addEventListener('click', startMeeting);
   hostControlsButton.addEventListener('click', async function (e) {
     if (convertToBoolean(this.getAttribute('aria-pressed'))) return;
     console.log('opening');
@@ -110,9 +122,27 @@ function injectHead() {
   const docHead = document.querySelector('head');
   docHead.innerHTML += '<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link href="https://fonts.googleapis.com/css2?family=David+Libre:wght@700&display=swap" rel="stylesheet">';
 }
+async function injectPartipantControls() {
+  try {
+    const participentList = await waitForElementToExist('div.m3Uzve.RJRKn', () => {
+      document.querySelector('button[data-promo-anchor-id="GEUYHe"]').click();
+    });
+    const participantItems = participentList.querySelectorAll('div[role="listitem"]');
+    let actionsButton;
+    console.log(participantItems);
+    for (let participantItem of participantItems) {
+      actionsButton = participantItem.querySelector('div[jsslot] button');
+      console.log(actionsButton);
+      actionsButton.addEventListener('click', () => {
+        console.log('action clicked!');
+      });
+    }
+  } catch {}
+}
 function injectHTML() {
   injectHead();
   setHostControls();
+  injectPartipantControls();
 }
 async function extractParticipantDetails() {
   try {
@@ -152,6 +182,7 @@ async function extractParticipantDetails() {
 
 function updateMuteButton(hasPermission) {
   const muteButton = getMuteButton();
+  console.log(hasPermission);
   muteButton.disabled = !hasPermission;
   if (!convertToBoolean(muteButton.getAttribute('data-is-muted')) && !hasPermission) {
     simulateMute();
@@ -195,10 +226,27 @@ function setupMuteObserver(target) {
 }
 
 //-----------------------------------the main function------------------------------------------------------
-async function setup() {
-  await chrome.runtime.sendMessage({
-    type: 'init'
+
+function _setUpListener() {
+  chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+    (async () => {
+      console.log(message);
+      switch (message.type) {
+        case 'documentUpdated':
+          updateMuteButton(message.canSpeak);
+          sendResponse(true);
+          break;
+      }
+    })();
+    return true; //https://stackoverflow.com/questions/44056271/chrome-runtime-onmessage-response-with-async-await
   });
+  console.log('setting up listener');
+}
+async function setup() {
+  await _setUpListener();
+  console.log('init');
+  console.log(await sendAndWait('init')); //Waits for the background script to load the document from FS
+  console.log('set up!');
   console.log(Boolean(getHostButton()));
   let {
     participantDetails,
@@ -215,9 +263,12 @@ async function setup() {
       participantDetails.UUID = res.UUID;
     });
     console.log(participantDetails);
-    await checkParticipant();
     setupMuteObserver(muteSymbol);
     injectHTML(); // this will asyncronysly wait until the host opens up the host controls
+
+    await chrome.runtime.sendMessage({
+      type: 'COOKIES-GET'
+    }, console.log);
     console.log('moving on...');
   } else {
     alert('יש בעיה בדף שלכם, כדאי לטעון מחדש');

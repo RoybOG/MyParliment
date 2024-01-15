@@ -7,7 +7,7 @@ import {
   injectHTML,
   waitForElementToExist,
 } from '../utils/domManipulationUtils'
-import { convertToBoolean, simulateMute } from '../utils'
+import { convertToBoolean, sendAndWait, simulateMute, timeout } from '../utils'
 
 const injectContent = () => {
   const middleToolBar = document.querySelector('div.lefKC + div>div')
@@ -27,6 +27,7 @@ async function initializePopUp(participantDetails) {}
 
 function updateMuteButton(hasPermission) {
   const muteButton = getMuteButton()
+  console.log(hasPermission)
   muteButton.disabled = !hasPermission
   if (
     !convertToBoolean(muteButton.getAttribute('data-is-muted')) &&
@@ -77,8 +78,31 @@ function setupMuteObserver(target) {
 }
 
 //-----------------------------------the main function------------------------------------------------------
+
+function _setUpListener() {
+  let docObj = null //Saves the docment object in a closure of this function
+  let cookieValue = null
+
+  chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+    ;(async () => {
+      console.log(message)
+      switch (message.type) {
+        case 'documentUpdated':
+          updateMuteButton(message.canSpeak)
+          sendResponse(true)
+          break
+      }
+    })()
+    return true //https://stackoverflow.com/questions/44056271/chrome-runtime-onmessage-response-with-async-await
+  })
+  console.log('setting up listener')
+}
+
 async function setup() {
-  await chrome.runtime.sendMessage({ type: 'init' })
+  await _setUpListener()
+  console.log('init')
+  console.log(await sendAndWait('init')) //Waits for the background script to load the document from FS
+  console.log('set up!')
   console.log(Boolean(getHostButton()))
   let { participantDetails, isHost, muteSymbol } =
     await extractParticipantDetails()
@@ -92,9 +116,12 @@ async function setup() {
       },
     )
     console.log(participantDetails)
-    await checkParticipant()
+
     setupMuteObserver(muteSymbol)
     injectHTML() // this will asyncronysly wait until the host opens up the host controls
+
+    await chrome.runtime.sendMessage({ type: 'COOKIES-GET' }, console.log)
+
     console.log('moving on...')
   } else {
     alert('יש בעיה בדף שלכם, כדאי לטעון מחדש')

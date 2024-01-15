@@ -1,4 +1,4 @@
-import { convertToBoolean } from '.'
+import { convertToBoolean, sendAndWait } from '.'
 import '../content/injectedStyles.css'
 export const getHostButton = () =>
   document.querySelector('div[jscontroller="upoJje"] button')
@@ -8,12 +8,12 @@ export const getMuteButton = () =>
     'div.Tmb7Fd button[data-is-muted][aria-label*="מיקרופון" i],button[data-is-muted][aria-label*="microphone" i]', //להוסיף לשפות אחרות
   )
 
-function createFullElement(element, attribute, inner) {
+function createFullElement(element, attributes, inner) {
   console.log(element)
   let el = document.createElement(element)
-  if (typeof attribute === 'object') {
-    for (let key in attribute) {
-      el.setAttribute(key, attribute[key])
+  if (typeof attributes === 'object') {
+    for (let key in attributes) {
+      el.setAttribute(key, attributes[key])
     }
   }
   if (typeof inner == 'string') {
@@ -27,7 +27,7 @@ function createFullElement(element, attribute, inner) {
       if (typeof innerElDetails == 'object') {
         innerEl = createFullElement(
           innerElDetails.element,
-          innerElDetails.attribute,
+          innerElDetails.attributes,
           innerElDetails.inner,
         )
       } else {
@@ -61,7 +61,21 @@ export function waitForElementToExist(selector, ifNotExists = () => {}) {
   })
 }
 
-function setHostControls() {
+async function startMeeting() {
+  if (await sendAndWait('createMeetDoc')) {
+    alert('הדיון התחיל בהצלחה! אתה מנחה הדיון!')
+  } else {
+    alert(
+      'לא הצלחת להתחיל את הדיון, או שמנחה אחר כבר התחיל או שהמערכת לא הצליחה! נסה מאוחר יותר!',
+    )
+  }
+}
+
+async function setHostControls() {
+  if (!(await sendAndWait('canCreateMeetDoc'))) {
+    console.log('file does exist')
+    return
+  }
   const hostControlsButton = getHostButton()
   if (!hostControlsButton) return null
   let extControls = createFullElement(
@@ -72,7 +86,7 @@ function setHostControls() {
     [
       {
         element: 'div',
-        attribute: { class: 'qNFnn', style: 'text-align: left;' },
+        attributes: { class: 'qNFnn', style: 'text-align: left;' },
         inner: 'My Parliment',
       },
       {
@@ -81,6 +95,7 @@ function setHostControls() {
       },
     ],
   )
+  extControls.querySelector('button').addEventListener('click', startMeeting)
   hostControlsButton.addEventListener('click', async function (e) {
     if (convertToBoolean(this.getAttribute('aria-pressed'))) return
     console.log('opening')
@@ -101,9 +116,34 @@ function injectHead() {
     '<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link href="https://fonts.googleapis.com/css2?family=David+Libre:wght@700&display=swap" rel="stylesheet">'
 }
 
+async function injectPartipantControls() {
+  try {
+    const participentList = await waitForElementToExist(
+      'div.m3Uzve.RJRKn',
+      () => {
+        document.querySelector('button[data-promo-anchor-id="GEUYHe"]').click()
+      },
+    )
+
+    const participantItems = participentList.querySelectorAll(
+      'div[role="listitem"]',
+    )
+    let actionsButton
+    console.log(participantItems)
+    for (let participantItem of participantItems) {
+      actionsButton = participantItem.querySelector('div[jsslot] button')
+      actionsButton.addEventListener('click', () => {
+        console.log('action clicked!')
+      })
+    }
+  } catch {}
+}
+
 export function injectHTML() {
   injectHead()
   setHostControls()
+
+  injectPartipantControls()
 }
 
 export async function extractParticipantDetails() {

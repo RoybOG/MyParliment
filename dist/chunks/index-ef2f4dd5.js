@@ -7,6 +7,16 @@ function getUrl(url, path) {
   }
   return url;
 }
+function sendAndWait(type, data = {}, responceFunction = d => d) {
+  return new Promise(resolve => {
+    chrome.runtime.sendMessage({
+      type,
+      ...data
+    }, r => {
+      resolve(responceFunction(r));
+    });
+  });
+}
 function simulateMute() {
   const OSName = navigator.appVersion.indexOf('Mac') != -1 ? 'MacOS' : 'Other';
   if (OSName == 'MacOS') {
@@ -28,4 +38,4 @@ function simulateMute() {
   }
 }
 
-export { convertToBoolean as c, getUrl as g, meetURLRegex as m, simulateMute as s };
+export { simulateMute as a, convertToBoolean as c, getUrl as g, meetURLRegex as m, sendAndWait as s };
