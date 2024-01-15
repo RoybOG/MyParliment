@@ -1,4 +1,4 @@
-import { doc, getDoc } from 'firebase/firestore'
+import { doc, getDoc, serverTimestamp } from 'firebase/firestore'
 import app_db, { FSDocumentHandler, colName } from '.'
 
 export async function createDocument(meetingID, hostUUID) {}
@@ -11,15 +11,16 @@ export async function getDocument(meetingID) {
 }
 
 export class MeetingDoc extends FSDocumentHandler {
-  static async createMeetingDoc(meetingID, hostUUID) {
+  static async createMeetingDoc(meetingID, hostUUID, updateListener) {
     let meetingData = {
       hostUUID,
       startTime: serverTimestamp(),
     }
-    return await FSDocumentHandler.createDocument(
+    return await FSDocumentHandler.createNewDocument(
       colName,
       meetingData,
       meetingID,
+      { updateListener },
     )
   }
 
@@ -28,16 +29,21 @@ export class MeetingDoc extends FSDocumentHandler {
     super({ docCollection: colName, docID: meetingID })
   }
 
-  CanParticipantSpeak(participantUUID) {
-    if (!this.fileExists) {
-      return false
+  canParticipantSpeak(participantUUID) {
+    if (!this.fileExists()) {
+      return true
     }
     return (
       participantUUID == this.data?.hostUUID ||
       participantUUID == this.data?.speakingParticipantUUID
     )
   }
-
+  canControlMeeting(UUID) {
+    if (!this.fileExists()) {
+      return true
+    }
+    return UUID == this.data.hostUUID
+  }
   async setSpeakingParticipant(participantUUID) {
     await this.updateDocument({ speakingParticipantUUID: participantUUID })
   }
@@ -45,10 +51,10 @@ export class MeetingDoc extends FSDocumentHandler {
 
 ;(async () => {
   let g = await MeetingDoc.loadDocument('rxh-btca-nrw')
-  console.log(g.CanParticipantSpeak('abcdefg'))
-  console.log(g.CanParticipantSpeak('abcdefg'))
-  console.log(g.CanParticipantSpeak('abcdefg'))
-  console.log(g.CanParticipantSpeak('abcdefg'))
-  console.log(g.CanParticipantSpeak('5t3'))
+  console.log(g.canParticipantSpeak('abcdefg'))
+  console.log(g.canParticipantSpeak('abcdefg'))
+  console.log(g.canParticipantSpeak('abcdefg'))
+  console.log(g.canParticipantSpeak('abcdefg'))
+  console.log(g.canParticipantSpeak('5t3'))
   //g.setSpeakingParticipant('helloeveryonemyturn')
 })()

@@ -10,6 +10,14 @@ export function getUrl(url, path) {
   return url
 }
 
+export function sendAndWait(type, data = {}, responceFunction = (d) => d) {
+  return new Promise((resolve) => {
+    chrome.runtime.sendMessage({ type, ...data }, (r) => {
+      resolve(responceFunction(r))
+    })
+  })
+}
+
 export function simulateMute() {
   const OSName = navigator.appVersion.indexOf('Mac') != -1 ? 'MacOS' : 'Other'
   if (OSName == 'MacOS') {

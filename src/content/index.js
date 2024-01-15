@@ -7,7 +7,7 @@ import {
   injectHTML,
   waitForElementToExist,
 } from '../utils/domManipulationUtils'
-import { convertToBoolean, simulateMute } from '../utils'
+import { convertToBoolean, sendAndWait, simulateMute } from '../utils'
 
 const injectContent = () => {
   const middleToolBar = document.querySelector('div.lefKC + div>div')
@@ -78,7 +78,8 @@ function setupMuteObserver(target) {
 
 //-----------------------------------the main function------------------------------------------------------
 async function setup() {
-  await chrome.runtime.sendMessage({ type: 'init' })
+  console.log(await sendAndWait('init')) //Waits for the background script to load the document from FS
+  console.log('set up!')
   console.log(Boolean(getHostButton()))
   let { participantDetails, isHost, muteSymbol } =
     await extractParticipantDetails()
@@ -95,6 +96,9 @@ async function setup() {
     await checkParticipant()
     setupMuteObserver(muteSymbol)
     injectHTML() // this will asyncronysly wait until the host opens up the host controls
+
+    await chrome.runtime.sendMessage({ type: 'COOKIES-GET' }, console.log)
+
     console.log('moving on...')
   } else {
     alert('יש בעיה בדף שלכם, כדאי לטעון מחדש')
